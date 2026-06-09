@@ -62,7 +62,7 @@ public class ConfigActivity extends Activity {
     private void on_save(){
         String url = url_input.getText().toString().trim();
         if(url.length() == 0){ toast("Please enter a poll URL"); return; }
-        if(!url.startsWith("https://")){ toast("The poll URL must use https://"); return; }
+        if(!url.startsWith("http://") && !url.startsWith("https://")){ toast("The poll URL must start with http:// or https://"); return; }
 
         new Prefs(this).set_poll_url(url);
 

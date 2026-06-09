@@ -102,13 +102,13 @@ public class OverlayController {
         web_view.getSettings().setDomStorageEnabled(true);
         // The page talks back to native through this one bridge object.
         web_view.addJavascriptInterface(new WebBridge(main_handler, listener), BRIDGE_NAME);
-        // Keep navigation on HTTPS and inside the WebView; never hand a URL to the
-        // system browser.
+        // Keep navigation to http/https inside the WebView; never hand a URL to the
+        // system browser (e.g. tel:, mailto:, intent:, market: links).
         web_view.setWebViewClient(new WebViewClient(){
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request){
                 String target = request.getUrl().toString();
-                if(target.startsWith("https://")){ return false; } // let the WebView load it
-                Log.w(TAG, "Blocked non-HTTPS navigation");
+                if(target.startsWith("http://") || target.startsWith("https://")){ return false; } // let the WebView load it
+                Log.w(TAG, "Blocked navigation to unsupported scheme");
                 return true; // swallow it
             }
         });

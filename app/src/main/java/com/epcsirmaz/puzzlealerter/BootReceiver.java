@@ -11,15 +11,19 @@ import android.content.Intent;
 import android.util.Log;
 
 /*
- * Optional auto-start on boot (plan section 9). Only starts the service once a
- * poll URL has been configured.
+ * Auto-start on boot (plan section 9). Only starts the service once a poll URL has
+ * been configured.
  *
- * Caveat: starting a foreground service straight from BOOT_COMPLETED can be
- * refused on modern Android because, at boot, no overlay window is yet visible to
- * satisfy the Android 16 SAW->FGS exemption (plan section 4.1). We therefore
- * attempt it but swallow the failure; the user can always reopen the app. A
- * sturdier post-boot / post-force-stop recovery trigger is a deferred decision
- * (plan section 12.2).
+ * Receiving BOOT_COMPLETED is itself a documented exemption from the background
+ * foreground-service-start restriction, so the specialUse service normally starts
+ * fine here -- this does NOT lean on the (now narrowed) SAW->FGS exemption, which
+ * would be unavailable at boot anyway since no overlay exists yet. We still guard
+ * the call: a few OEM builds restrict specialUse from boot, and on failure the
+ * recovery alarm retries the next time the device is awake (RecoveryAlarm).
+ *
+ * Note: BOOT_COMPLETED is not delivered to an app in the stopped state, so the app
+ * must have been launched at least once after install (and not since Force-stopped)
+ * for any of this to run.
  */
 public class BootReceiver extends BroadcastReceiver {
 
@@ -33,6 +37,8 @@ public class BootReceiver extends BroadcastReceiver {
         catch(Exception e){
             Log.w(PollService.TAG, "Could not start service on boot: " + e.getMessage());
         }
+        // Arm the recovery alarm even if the direct start was refused, so it retries.
+        RecoveryAlarm.schedule(context);
     }
 
 }

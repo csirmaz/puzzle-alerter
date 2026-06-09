@@ -97,8 +97,8 @@ body {
  *     driven solely by this call; the poll never collapses the overlay.
  *   - Validation is client-side and trusted: the user is assumed unable to forge
  *     the bridge call, so no server round-trip is needed (plan section 6.2).
- *   - Serve over HTTPS. The app refuses to load a non-HTTPS URL and blocks any
- *     non-HTTPS navigation inside the WebView.
+ *   - Both http:// and https:// are accepted (the app enables cleartext traffic);
+ *     https is still recommended. Navigation to other schemes is blocked.
  *   - This file also runs standalone in a normal browser for testing: if the
  *     bridge is absent, solved() shows a message instead of dismissing.
  */

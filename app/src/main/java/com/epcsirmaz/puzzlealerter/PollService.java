@@ -86,6 +86,9 @@ public class PollService extends Service
     public int onStartCommand(Intent intent, int flags, int start_id){
         // ConfigActivity may have just saved a new URL; pick it up.
         refresh_config();
+        // Keep the recovery alarm armed while we are alive, so it re-asserts the
+        // service after a refused boot-start or a process kill (plan section 12.2).
+        if(poll_url != null){ RecoveryAlarm.schedule(this); }
         // START_STICKY: on a process kill the OS recreates the service, which
         // re-adds the sentinel and reloads state. This recreation latency is the
         // ~5-10 s reappearance window (plan section 3).
@@ -136,7 +139,7 @@ public class PollService extends Service
         if(NONE.equals(result)){ return; }               // explicit do-nothing; never collapses (6.1)
         if(result.equals(last_dismissed_id)){ return; }  // de-dup: already solved this id (6.2)
         if(currently_shown_id != null){ return; }        // a puzzle is up; do not interrupt it
-        if(!result.startsWith("https://")){ Log.e(TAG, "Refusing non-HTTPS puzzle URL"); return; }
+        if(!result.startsWith("http://") && !result.startsWith("https://")){ Log.e(TAG, "Refusing puzzle URL with unsupported scheme"); return; }
 
         // The id is the returned URL itself.
         currently_shown_id = result;

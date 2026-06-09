@@ -9,11 +9,18 @@
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
-    <!-- Optional: auto-start on boot (plan section 9). -->
+    <!-- Auto-start on boot (plan section 9). -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <!-- Exact alarm for the recovery trigger. USE_EXACT_ALARM is auto-granted; the
+         Play restriction to alarm/calendar apps is moot when sideloaded. Only exact
+         alarms earn the exemption to start the FGS from the background. -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>
 
+    <!-- Cleartext http:// is permitted for the poll endpoint and the WebView source
+         (user decision); Android blocks cleartext by default since API 28. -->
     <application
         android:allowBackup="false"
+        android:usesCleartextTraffic="true"
         android:icon="@drawable/ic_launcher"
         android:label="@string/app_name"
         android:supportsRtl="true"
@@ -47,6 +54,11 @@
                 <action android:name="android.intent.action.BOOT_COMPLETED"/>
             </intent-filter>
         </receiver>
+
+        <!-- Recovery alarm target. Explicit-intent, internal use only. -->
+        <receiver
+            android:name=".RecoveryReceiver"
+            android:exported="false"/>
 
     </application>
 
