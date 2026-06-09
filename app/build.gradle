@@ -1,0 +1,33 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.epcsirmaz.puzzlealerter'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId 'com.epcsirmaz.puzzlealerter'
+        minSdk 34            // FOREGROUND_SERVICE_SPECIAL_USE permission is API 34+
+        targetSdk 36         // Android 16
+        versionCode 1
+        versionName '1.0'
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+}
+
+dependencies {
+    // Deliberately none. The app uses only framework APIs (WebView, WindowManager,
+    // ConnectivityManager, PowerManager, Notification) — no AndroidX, no third-party
+    // libraries, in keeping with the dependency-light house style.
+}

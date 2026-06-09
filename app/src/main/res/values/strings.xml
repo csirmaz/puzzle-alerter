@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Puzzle Alerter</string>
+    <string name="config_intro">Enter the poll URL. While the screen is on and Wi-Fi is connected, the app checks it about once a minute and shows any puzzle it returns.</string>
+    <string name="url_hint">https://example.com/poll</string>
+    <string name="save_and_start">Save and start</string>
+    <string name="grant_overlay">Grant \"display over other apps\"</string>
+</resources>
