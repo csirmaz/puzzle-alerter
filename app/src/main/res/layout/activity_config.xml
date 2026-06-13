@@ -33,6 +33,16 @@
         android:layout_marginTop="8dp"
         android:text="@string/grant_overlay"/>
 
+    <!-- Manual one-shot poll: fire a poll right now and show whatever the server
+         returns (a puzzle URL in the overlay, or any other text as a toast),
+         bypassing the screen/Wi-Fi gating and the de-dup that throttle the loop. -->
+    <Button
+        android:id="@+id/poll_now_button"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="@string/poll_now"/>
+
     <TextView
         android:id="@+id/status"
         android:layout_width="match_parent"

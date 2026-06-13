@@ -40,6 +40,7 @@ public class ConfigActivity extends Activity {
         status = findViewById(R.id.status);
         Button save = findViewById(R.id.save_button);
         Button grant = findViewById(R.id.grant_overlay_button);
+        Button poll_now = findViewById(R.id.poll_now_button);
 
         String existing = new Prefs(this).get_poll_url();
         if(existing != null){ url_input.setText(existing); }
@@ -49,6 +50,9 @@ public class ConfigActivity extends Activity {
         });
         grant.setOnClickListener(new View.OnClickListener(){
             public void onClick(View v){ request_overlay_permission(); }
+        });
+        poll_now.setOnClickListener(new View.OnClickListener(){
+            public void onClick(View v){ on_poll_now(); }
         });
     }
 
@@ -72,6 +76,19 @@ public class ConfigActivity extends Activity {
             return; // continues in onRequestPermissionsResult
         }
         start_service_if_ready();
+    }
+
+    /* Manual one-shot poll. Hand the service a POLL_NOW command; it fetches the URL
+       right away (no screen/Wi-Fi gating, no de-dup) and either shows the puzzle in
+       the overlay or toasts whatever non-URL text came back. We need a URL set, but
+       not the overlay grant -- without it the non-URL text path still works and the
+       service just logs the failed overlay add for the URL path. */
+    private void on_poll_now(){
+        if(new Prefs(this).get_poll_url() == null){ toast("Set a poll URL first"); return; }
+        Intent intent = new Intent(this, PollService.class);
+        intent.setAction(PollService.ACTION_POLL_NOW);
+        startForegroundService(intent);
+        toast("Polling...");
     }
 
     @Override

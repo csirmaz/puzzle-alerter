@@ -7,6 +7,7 @@ package com.epcsirmaz.puzzlealerter;
 
 import android.content.Context;
 import android.graphics.Color;
+import android.graphics.Insets;
 import android.graphics.PixelFormat;
 import android.os.Build;
 import android.os.Handler;
@@ -14,6 +15,7 @@ import android.util.Log;
 import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
+import android.view.WindowInsets;
 import android.view.WindowManager;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebView;
@@ -121,7 +123,9 @@ public class OverlayController {
         });
 
         active_root = new FrameLayout(context);
-        active_root.setBackgroundColor(Color.WHITE);
+        // Grey fills active_root, so the inset strip outside the WebView (the
+        // system-bar + cutout padding added below) shows grey rather than white.
+        active_root.setBackgroundColor(Color.GRAY);
         active_root.addView(web_view, new FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT));
@@ -133,6 +137,20 @@ public class OverlayController {
         active_root.setOnKeyListener(new View.OnKeyListener(){
             public boolean onKey(View v, int key_code, KeyEvent event){
                 return key_code == KeyEvent.KEYCODE_BACK; // true == consumed
+            }
+        });
+
+        // The overlay window stays full-bleed (grey fills the strip behind the
+        // bars), but pad active_root in by the system bars + any display cutout so
+        // the WebView child is shrunk clear of them -- otherwise the top of the page
+        // renders behind the status icons. Padding the FrameLayout, not the WebView,
+        // means the WebView itself is laid out smaller rather than scrolled.
+        active_root.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener(){
+            public WindowInsets onApplyWindowInsets(View v, WindowInsets insets){
+                Insets bars = insets.getInsets(
+                    WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
+                v.setPadding(bars.left, bars.top, bars.right, bars.bottom);
+                return insets;
             }
         });
 
@@ -155,6 +173,7 @@ public class OverlayController {
         try {
             window_manager.addView(active_root, lp);
             active_root.requestFocus();
+            active_root.requestApplyInsets(); // fire the inset listener for the initial layout
             web_view.loadUrl(url);
         }
         catch(Exception e){

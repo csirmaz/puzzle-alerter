@@ -18,6 +18,7 @@ import android.os.IBinder;
 import android.os.Looper;
 import android.os.PowerManager;
 import android.util.Log;
+import android.widget.Toast;
 
 /*
  * The heart of the app. A START_STICKY foreground service that:
@@ -40,6 +41,10 @@ public class PollService extends Service
     implements Poller.Listener, OverlayController.PuzzleListener, ScreenStateReceiver.ScreenListener {
 
     public static final String TAG = "PuzzleAlerter";
+
+    /* Intent action from ConfigActivity's "Poll now" button: fire one immediate
+       poll and surface the result (see on_manual_poll_result). */
+    public static final String ACTION_POLL_NOW = "com.epcsirmaz.puzzlealerter.action.POLL_NOW";
 
     private static final String NONE = "NONE";          // poll "do nothing" sentinel value
     private static final String CHANNEL_ID = "puzzle_alerter_status";
@@ -94,6 +99,12 @@ public class PollService extends Service
         // Keep the recovery alarm armed while we are alive, so it re-asserts the
         // service after a refused boot-start or a process kill (plan section 12.2).
         if(poll_url != null){ RecoveryAlarm.schedule(this); }
+        // Manual "Poll now" from the config screen: a user-initiated one-shot that
+        // bypasses the loop's screen/Wi-Fi gating (intent is null on a START_STICKY
+        // respawn, so null-check before reading the action).
+        if(intent != null && ACTION_POLL_NOW.equals(intent.getAction()) && poller != null){
+            poller.poll_now();
+        }
         // START_STICKY: on a process kill the OS recreates the service, which
         // re-adds the sentinel and reloads state. This recreation latency is the
         // ~5-10 s reappearance window (plan section 3).
@@ -153,6 +164,25 @@ public class PollService extends Service
     }
 
     @Override
+    public void on_manual_poll_result(String result){
+        // Runs on the main thread (Poller guarantees it). The manual "Poll now"
+        // button is a deliberate one-shot, so unlike on_poll_result it ignores the
+        // de-dup against last_dismissed_id and force-shows a usable URL. Anything
+        // that is not a usable URL (NONE, a status string, an empty body, a network
+        // failure) is surfaced as text so the user can see what the server returned.
+        if(result == null){ toast("Poll failed -- no response"); return; }
+        boolean usable = result.length() > 0 && !NONE.equals(result)
+            && (result.startsWith("http://") || result.startsWith("https://"));
+        if(usable){
+            if(currently_shown_id != null){ toast("A puzzle is already showing"); return; }
+            currently_shown_id = result;
+            overlay.show_puzzle(result);
+            return;
+        }
+        toast(result.length() > 0 ? result : "Empty response");
+    }
+
+    @Override
     public void on_puzzle_solved(){
         // Runs on the main thread (WebBridge hops here). Collapse is driven solely
         // by this bridge event, never by the poll (plan section 6.1).
@@ -179,6 +209,12 @@ public class PollService extends Service
         // Protected system broadcasts; the receiver is internal, so NOT_EXPORTED.
         registerReceiver(screen_receiver, filter, Context.RECEIVER_NOT_EXPORTED);
     }
+
+    // -------------------------- Helpers ----------------------------------
+
+    /* Surface a short message to the user. Used by the manual poll to report a
+       non-URL response or a failure; call on the main thread. */
+    private void toast(String msg){ Toast.makeText(this, msg, Toast.LENGTH_LONG).show(); }
 
     // -------------------------- Foreground notification ------------------
 

@@ -35,6 +35,10 @@ public class Poller {
        result == null means the fetch failed (already logged). */
     public interface Listener {
         void on_poll_result(String result);
+        /* A one-shot result from poll_now() (the manual "Poll now" button), kept
+           separate from the loop's on_poll_result so the service can apply the
+           force-show / show-text behaviour the user asked for. */
+        void on_manual_poll_result(String result);
     }
 
     private static final String TAG = PollService.TAG;
@@ -79,6 +83,29 @@ public class Poller {
     public void stop(){
         running = false;
         main_handler.removeCallbacks(tick);
+    }
+
+    /* Fire a single immediate fetch, regardless of the screen/Wi-Fi gating or
+       whether the loop is running -- driven by the manual "Poll now" button. The
+       result (or null on failure) is posted to on_manual_poll_result on the main
+       thread. Does not disturb the loop's cadence; it just queues one extra fetch
+       on the same single worker, so it serialises behind any in-flight poll. */
+    public void poll_now(){
+        final String url = poll_url;
+        if(url == null){
+            main_handler.post(new Runnable(){
+                public void run(){ listener.on_manual_poll_result(null); }
+            });
+            return;
+        }
+        network.execute(new Runnable(){
+            public void run(){
+                final String result = fetch(url);
+                main_handler.post(new Runnable(){
+                    public void run(){ listener.on_manual_poll_result(result); }
+                });
+            }
+        });
     }
 
     private void schedule_next(){
