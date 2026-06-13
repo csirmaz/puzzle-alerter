@@ -6,4 +6,5 @@
     <string name="save_and_start">Save and start</string>
     <string name="grant_overlay">Grant \"display over other apps\"</string>
     <string name="poll_now">Poll now</string>
+    <string name="go_home_label">Send the current app to the background when a puzzle appears</string>
 </resources>

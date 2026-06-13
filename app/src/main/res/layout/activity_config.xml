@@ -19,6 +19,16 @@
         android:hint="@string/url_hint"
         android:inputType="textUri"/>
 
+    <!-- Opt-in: also send the foreground app to the background (a one-shot Home
+         launch) when a puzzle appears, so a media player stops instead of merely
+         being covered. Persisted on "Save and start" with the URL. -->
+    <CheckBox
+        android:id="@+id/go_home_checkbox"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="@string/go_home_label"/>
+
     <Button
         android:id="@+id/save_button"
         android:layout_width="match_parent"

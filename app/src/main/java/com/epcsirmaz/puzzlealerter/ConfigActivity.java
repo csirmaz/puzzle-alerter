@@ -14,6 +14,7 @@ import android.os.Bundle;
 import android.provider.Settings;
 import android.view.View;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -29,6 +30,7 @@ public class ConfigActivity extends Activity {
     private static final int REQ_NOTIFICATIONS = 100;
 
     private EditText url_input;
+    private CheckBox go_home_checkbox;
     private TextView status;
 
     @Override
@@ -37,13 +39,16 @@ public class ConfigActivity extends Activity {
         setContentView(R.layout.activity_config);
 
         url_input = findViewById(R.id.url_input);
+        go_home_checkbox = findViewById(R.id.go_home_checkbox);
         status = findViewById(R.id.status);
         Button save = findViewById(R.id.save_button);
         Button grant = findViewById(R.id.grant_overlay_button);
         Button poll_now = findViewById(R.id.poll_now_button);
 
-        String existing = new Prefs(this).get_poll_url();
+        Prefs prefs = new Prefs(this);
+        String existing = prefs.get_poll_url();
         if(existing != null){ url_input.setText(existing); }
+        go_home_checkbox.setChecked(prefs.get_go_home_on_trigger());
 
         save.setOnClickListener(new View.OnClickListener(){
             public void onClick(View v){ on_save(); }
@@ -68,7 +73,11 @@ public class ConfigActivity extends Activity {
         if(url.length() == 0){ toast("Please enter a poll URL"); return; }
         if(!url.startsWith("http://") && !url.startsWith("https://")){ toast("The poll URL must start with http:// or https://"); return; }
 
-        new Prefs(this).set_poll_url(url);
+        Prefs prefs = new Prefs(this);
+        prefs.set_poll_url(url);
+        // Persisted here so the service picks it up on the (re)start below; the service
+        // re-reads it in refresh_config (plan section 6.5).
+        prefs.set_go_home_on_trigger(go_home_checkbox.isChecked());
 
         // POST_NOTIFICATIONS backs the foreground-service notification (Android 13+).
         if(checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED){

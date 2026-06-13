@@ -60,6 +60,7 @@ public class PollService extends Service
     private String poll_url;
     private String last_dismissed_id;
     private String currently_shown_id;  // in-memory only; null == nothing shown
+    private boolean go_home_on_trigger;  // re-read from Prefs; see go_home()
 
     // -------------------------- Lifecycle --------------------------------
 
@@ -72,6 +73,7 @@ public class PollService extends Service
         // Re-read durable state up front (plan section 6.3).
         poll_url = prefs.get_poll_url();
         last_dismissed_id = prefs.get_last_dismissed_id();
+        go_home_on_trigger = prefs.get_go_home_on_trigger();
 
         start_foreground();
 
@@ -140,6 +142,9 @@ public class PollService extends Service
 
     private void refresh_config(){
         poll_url = prefs.get_poll_url();
+        // The "send app to background" toggle may have just changed in ConfigActivity,
+        // which restarts the service to land here; pick it up for the next trigger.
+        go_home_on_trigger = prefs.get_go_home_on_trigger();
         if(poller == null){ return; }
         poller.set_poll_url(poll_url);
         PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
@@ -159,8 +164,7 @@ public class PollService extends Service
         if(!result.startsWith("http://") && !result.startsWith("https://")){ Log.e(TAG, "Refusing puzzle URL with unsupported scheme"); return; }
 
         // The id is the returned URL itself.
-        currently_shown_id = result;
-        overlay.show_puzzle(result);
+        expand_overlay(result);
     }
 
     @Override
@@ -175,8 +179,7 @@ public class PollService extends Service
             && (result.startsWith("http://") || result.startsWith("https://"));
         if(usable){
             if(currently_shown_id != null){ toast("A puzzle is already showing"); return; }
-            currently_shown_id = result;
-            overlay.show_puzzle(result);
+            expand_overlay(result);
             return;
         }
         toast(result.length() > 0 ? result : "Empty response");
@@ -211,6 +214,38 @@ public class PollService extends Service
     }
 
     // -------------------------- Helpers ----------------------------------
+
+    /* The single expand path shared by the loop and the manual one-shot. Callers have
+       already done all the gating (de-dup, "nothing shown", scheme check); this just
+       records the id, optionally evicts the foreground app, and raises the overlay.
+       Main thread only. */
+    private void expand_overlay(String id){
+        currently_shown_id = id;
+        if(go_home_on_trigger){ go_home(); }
+        overlay.show_puzzle(id);
+    }
+
+    /* One-shot "send the current app to the background" at trigger time (opt-in via
+       Prefs). The overlay only *covers* the foreground app, so e.g. a video keeps
+       playing underneath; going Home gives that app onStop, which makes most players
+       pause. This is an Activity launch from the background, permitted because we hold
+       SYSTEM_ALERT_WINDOW with a live sentinel -- the same BAL exemption section 4.1
+       relies on to (re)start the service. It is NOT load-bearing for the lock: if the
+       launch is ever refused the overlay still covers the screen, we just lose the
+       playback-stop. It also backgrounds only the single foreground task; audio from a
+       background media service is unaffected. */
+    private void go_home(){
+        Intent home = new Intent(Intent.ACTION_MAIN);
+        home.addCategory(Intent.CATEGORY_HOME);
+        home.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        try {
+            startActivity(home);
+        }
+        catch(Exception e){
+            // Refused (e.g. a future BAL tightening); the overlay still locks the screen.
+            Log.w(TAG, "Home launch refused; overlay still covers the screen", e);
+        }
+    }
 
     /* Surface a short message to the user. Used by the manual poll to report a
        non-URL response or a failure; call on the main thread. */

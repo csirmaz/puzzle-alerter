@@ -20,6 +20,7 @@ public class Prefs {
     private static final String FILE = "puzzle_alerter_prefs";
     private static final String KEY_POLL_URL = "poll_url";
     private static final String KEY_LAST_DISMISSED_ID = "last_dismissed_id";
+    private static final String KEY_GO_HOME_ON_TRIGGER = "go_home_on_trigger";
 
     private final SharedPreferences sp;
 
@@ -35,5 +36,13 @@ public class Prefs {
     public String get_last_dismissed_id(){ return sp.getString(KEY_LAST_DISMISSED_ID, null); }
 
     public void set_last_dismissed_id(String id){ sp.edit().putString(KEY_LAST_DISMISSED_ID, id).apply(); }
+
+    /* Optional behaviour: when a puzzle is shown, also send the currently-foreground
+       app to the background (a one-shot Home launch) so a media player stops rather
+       than just being covered by the overlay. Off by default -- the overlay alone is
+       the locking mechanism; this is an extra eviction the user opts into. */
+    public boolean get_go_home_on_trigger(){ return sp.getBoolean(KEY_GO_HOME_ON_TRIGGER, false); }
+
+    public void set_go_home_on_trigger(boolean on){ sp.edit().putBoolean(KEY_GO_HOME_ON_TRIGGER, on).apply(); }
 
 }
