@@ -48,6 +48,7 @@ public class PollService extends Service
     private Handler main_handler;
     private Prefs prefs;
     private OverlayController overlay;
+    private Speaker speaker;
     private Poller poller;
     private ScreenStateReceiver screen_receiver;
 
@@ -69,7 +70,11 @@ public class PollService extends Service
 
         start_foreground();
 
-        overlay = new OverlayController(this, main_handler, this);
+        // Bind the TTS engine up front so it is ready before any puzzle appears;
+        // pages drive it through the bridge in lieu of window.speechSynthesis.
+        speaker = new Speaker(this);
+
+        overlay = new OverlayController(this, main_handler, this, speaker);
         overlay.add_sentinel();
 
         poller = new Poller(this, main_handler, this);
@@ -118,6 +123,7 @@ public class PollService extends Service
             }
         }
         if(overlay != null){ overlay.teardown(); }
+        if(speaker != null){ speaker.shutdown(); }
         super.onDestroy();
     }
 

@@ -56,6 +56,11 @@ body {
     border: 0;
     border-radius: .4rem;
 }
+.pa-speak {
+    margin-top: .75rem;
+    color: #3367d6;
+    background: #eef2fb;
+}
 .pa-message {
     margin-top: 1rem;
     min-height: 1.25rem;
@@ -70,6 +75,7 @@ body {
     <div class="pa-sum" id="pa_sum">&nbsp;</div>
     <input class="pa-answer" id="pa_answer" type="number" inputmode="numeric" autocomplete="off"/>
     <button class="pa-button" id="pa_submit">Check</button>
+    <button class="pa-button pa-speak" id="pa_speak" type="button">&#128266; Read aloud</button>
     <div class="pa-message" id="pa_message">&nbsp;</div>
 </div>
 
@@ -92,6 +98,13 @@ body {
  *                 returning the same URL will not immediately re-show it. The
  *                 overlay re-opens only when the poll returns a genuinely new URL.
  *
+ *   method      : speak(text)     (one string argument, no return value)
+ *   effect      : reads text aloud through the device's native text-to-speech
+ *                 engine. Use this instead of window.speechSynthesis, which the
+ *                 Android WebView does NOT implement (the object exists but is
+ *                 silent). Native TTS is not subject to the WebView autoplay gate,
+ *                 so it works even when called automatically on load.
+ *
  * Notes:
  *   - Call solved() once, only when the task is genuinely complete. Dismissal is
  *     driven solely by this call; the poll never collapses the overlay.
@@ -99,8 +112,13 @@ body {
  *     the bridge call, so no server round-trip is needed (plan section 6.2).
  *   - Both http:// and https:// are accepted (the app enables cleartext traffic);
  *     https is still recommended. Navigation to other schemes is blocked.
+ *   - Ordinary web audio works too: the app disables the WebView gesture gate
+ *     (setMediaPlaybackRequiresUserGesture(false)), so new Audio(url).play() and
+ *     the Web Audio API play without a preceding tap. Only speechSynthesis is
+ *     unavailable -- route speech through speak() above.
  *   - This file also runs standalone in a normal browser for testing: if the
- *     bridge is absent, solved() shows a message instead of dismissing.
+ *     bridge is absent, solved() shows a message and speak() falls back to the
+ *     browser's window.speechSynthesis.
  */
 
 var PA = {
@@ -117,6 +135,29 @@ var PA = {
         document.getElementById('pa_answer').value = '';
         document.getElementById('pa_message').textContent = '';
         document.getElementById('pa_answer').focus();
+        // Read the new puzzle aloud. Native TTS bypasses the autoplay gate, so this
+        // is heard even though nothing has been tapped yet.
+        PA.speak(PA.prompt_text());
+    },
+
+    // The puzzle as a spoken sentence (e.g. "What is 3 plus 5?").
+    prompt_text: function(){
+        return 'What is ' + PA.a + ' plus ' + PA.b + '?';
+    },
+
+    // Speak text aloud. In the app, hand it to the native bridge; standalone in a
+    // browser, fall back to the Web Speech API (which the WebView lacks).
+    speak: function(text){
+        if(window.PuzzleAlerter && typeof window.PuzzleAlerter.speak === 'function'){
+            window.PuzzleAlerter.speak(text);
+            return;
+        }
+        if(window.speechSynthesis){
+            window.speechSynthesis.cancel();
+            window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+            return;
+        }
+        console.warn('No TTS available (no PuzzleAlerter bridge, no speechSynthesis).');
     },
 
     // Validate the typed answer; dismiss on success, prompt again on failure.
@@ -146,6 +187,7 @@ var PA = {
 };
 
 document.getElementById('pa_submit').addEventListener('click', PA.check);
+document.getElementById('pa_speak').addEventListener('click', function(){ PA.speak(PA.prompt_text()); });
 document.getElementById('pa_answer').addEventListener('keydown', function(e){
     if(e.key === 'Enter'){ PA.check(); }
 });

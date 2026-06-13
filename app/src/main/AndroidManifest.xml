@@ -16,6 +16,16 @@
          alarms earn the exemption to start the FGS from the background. -->
     <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>
 
+    <!-- Make the system text-to-speech engine visible. Under API 30+ package
+         visibility filtering, TextToSpeech cannot bind the default engine (onInit
+         returns ERROR) without this declaration. The page drives TTS through the
+         bridge because Android WebView does not implement window.speechSynthesis. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE"/>
+        </intent>
+    </queries>
+
     <!-- Cleartext http:// is permitted for the poll endpoint and the WebView source
          (user decision); Android blocks cleartext by default since API 28. -->
     <application

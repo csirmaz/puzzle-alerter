@@ -46,16 +46,18 @@ public class OverlayController {
     private final Context context;       // service context (valid for overlay views)
     private final Handler main_handler;
     private final PuzzleListener listener;
+    private final Speaker speaker;       // native TTS, shared via the bridge
     private final WindowManager window_manager;
 
     private View sentinel;               // always present once added
     private FrameLayout active_root;     // non-null only while a puzzle is shown
     private WebView web_view;
 
-    public OverlayController(Context context, Handler main_handler, PuzzleListener listener){
+    public OverlayController(Context context, Handler main_handler, PuzzleListener listener, Speaker speaker){
         this.context = context;
         this.main_handler = main_handler;
         this.listener = listener;
+        this.speaker = speaker;
         this.window_manager = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
     }
 
@@ -100,8 +102,13 @@ public class OverlayController {
         // JavaScript is enabled ONLY while a page is shown (plan section 7).
         web_view.getSettings().setJavaScriptEnabled(true);
         web_view.getSettings().setDomStorageEnabled(true);
+        // Allow the page to start audio (new Audio().play(), Web Audio) without a
+        // user gesture. The WebView default is true, which silently drops any
+        // playback not begun synchronously inside a tap handler -- so an alert
+        // sound played on load or after a timer would never be heard (plan 7.1).
+        web_view.getSettings().setMediaPlaybackRequiresUserGesture(false);
         // The page talks back to native through this one bridge object.
-        web_view.addJavascriptInterface(new WebBridge(main_handler, listener), BRIDGE_NAME);
+        web_view.addJavascriptInterface(new WebBridge(main_handler, listener, speaker), BRIDGE_NAME);
         // Keep navigation to http/https inside the WebView; never hand a URL to the
         // system browser (e.g. tel:, mailto:, intent:, market: links).
         web_view.setWebViewClient(new WebViewClient(){
@@ -167,6 +174,8 @@ public class OverlayController {
        Chromium renderer rather than leaving it resident (plan section 7). Must
        run on the main thread. */
     private void teardown_active(){
+        // Silence any alert the dismissed page was still speaking.
+        if(speaker != null){ speaker.stop(); }
         if(web_view != null){
             web_view.getSettings().setJavaScriptEnabled(false);
             web_view.loadUrl("about:blank");
