@@ -28,6 +28,13 @@ import java.util.concurrent.Executors;
  * The loop is started/stopped with the screen (by the service, via the screen
  * receiver). Each tick additionally gates on Wi-Fi, so we never poll over
  * cellular -- off Wi-Fi the request is skipped entirely.
+ *
+ * Failover (optional second URL): the loop normally polls the primary URL every
+ * minute. If a primary poll errors (fetch returns null -- network failure, non-200,
+ * timeout) and a fallback URL is configured, the next minute polls the fallback
+ * instead; the minute after that returns to the primary, regardless of whether the
+ * fallback poll succeeded. A fallback poll is thus only ever a single detour, and the
+ * loop still issues exactly one poll per minute overall.
  */
 public class Poller {
 
@@ -52,8 +59,13 @@ public class Poller {
     private final ConnectivityManager connectivity;
     private final ExecutorService network = Executors.newSingleThreadExecutor();
 
-    private volatile String poll_url;    // read on the worker thread, set from main
-    private boolean running = false;     // main-thread only
+    private volatile String poll_url;       // primary; read on the worker thread, set from main
+    private volatile String fallback_url;   // optional failover URL; null == none configured
+    private boolean running = false;        // main-thread only
+    // Set true after a primary poll errors while a fallback is configured, so the next
+    // tick polls the fallback; cleared again after that one detour. Main-thread only
+    // (read at tick start, written in the post-fetch main-thread callback).
+    private boolean poll_fallback_next = false;
 
     private final Runnable tick = new Runnable(){
         public void run(){ do_tick(); }
@@ -68,6 +80,9 @@ public class Poller {
     }
 
     public void set_poll_url(String url){ poll_url = url; }
+
+    /* The optional failover URL (null clears it). See do_tick for the failover rule. */
+    public void set_fallback_url(String url){ fallback_url = url; }
 
     /* Start the loop. Idempotent; call on the main thread. */
     public void start(){
@@ -120,16 +135,29 @@ public class Poller {
         if(!running){ return; }
         if(poll_url == null){ schedule_next(); return; }
         if(!wifi_connected()){
-            // Off Wi-Fi: skip the request, try again next interval (plan section 5).
+            // Off Wi-Fi (Wi-Fi off, or not connected -- the active network is not Wi-Fi):
+            // skip the request entirely, try again next interval (plan section 5). Leave
+            // the failover state untouched -- we did not actually poll anything.
             schedule_next();
             return;
         }
-        final String url = poll_url;
+        // Pick this tick's URL: normally the primary, but if the previous primary poll
+        // errored and a fallback is configured, this one tick polls the fallback instead.
+        final String fallback = fallback_url;
+        final boolean use_fallback = poll_fallback_next && fallback != null;
+        final String url = use_fallback ? fallback : poll_url;
         network.execute(new Runnable(){
             public void run(){
                 final String result = fetch(url);
                 main_handler.post(new Runnable(){
                     public void run(){
+                        // Failover bookkeeping (main thread): switch to the fallback next
+                        // tick only when *this* tick was the primary, it errored, and a
+                        // fallback is configured. In every other case -- a primary success,
+                        // no fallback, or this tick already being the fallback detour --
+                        // the next tick returns to (or stays on) the primary, so a fallback
+                        // poll is only ever one minute long whatever its own result.
+                        poll_fallback_next = !use_fallback && result == null && fallback_url != null;
                         if(running){ listener.on_poll_result(result); }
                         schedule_next();   // chain the next tick only after this one settles
                     }

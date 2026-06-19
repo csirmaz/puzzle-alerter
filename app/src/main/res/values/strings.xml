@@ -3,8 +3,11 @@
     <string name="app_name">Puzzle Alerter</string>
     <string name="config_intro">Enter the poll URL. While the screen is on and Wi-Fi is connected, the app checks it about once a minute and shows any puzzle it returns.</string>
     <string name="url_hint">https://example.com/poll</string>
+    <string name="fallback_url_label">Fallback poll URL (optional). If the main URL errors, the next minute checks this one instead, then returns to the main URL.</string>
+    <string name="fallback_url_hint">https://backup.example.com/poll</string>
     <string name="save_and_start">Save and start</string>
     <string name="grant_overlay">Grant \"display over other apps\"</string>
     <string name="poll_now">Poll now</string>
     <string name="go_home_label">Send the current app to the background when a puzzle appears</string>
+    <string name="dismiss_timeout_label">Auto-dismiss a puzzle if the screen stays off this many minutes (0 = never)</string>
 </resources>

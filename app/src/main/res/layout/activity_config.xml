@@ -19,6 +19,38 @@
         android:hint="@string/url_hint"
         android:inputType="textUri"/>
 
+    <!-- Optional failover URL. If the primary poll errors, the next minute polls this
+         one instead, then returns to the primary. Blank = no fallback. -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="@string/fallback_url_label"/>
+
+    <EditText
+        android:id="@+id/fallback_url_input"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:autofillHints=""
+        android:hint="@string/fallback_url_hint"
+        android:inputType="textUri"/>
+
+    <!-- Auto-dismiss a triggered puzzle if the screen stays off this many minutes
+         (checked on the next screen-on; plan 6.6). 0 disables it. Persisted on
+         "Save and start" with the URL. -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="@string/dismiss_timeout_label"/>
+
+    <EditText
+        android:id="@+id/timeout_input"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:autofillHints=""
+        android:inputType="number"/>
+
     <!-- Opt-in: also send the foreground app to the background (a one-shot Home
          launch) when a puzzle appears, so a media player stops instead of merely
          being covered. Persisted on "Save and start" with the URL. -->
@@ -59,5 +91,14 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="24dp"
         android:fontFamily="monospace"/>
+
+    <!-- Build identifier, set programmatically from the package's versionName/versionCode
+         (bumped in app/build.gradle on every change) so the running build is visible. -->
+    <TextView
+        android:id="@+id/version_label"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:textSize="12sp"/>
 
 </LinearLayout>

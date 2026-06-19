@@ -17,6 +17,7 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.PowerManager;
+import android.os.SystemClock;
 import android.util.Log;
 import android.widget.Toast;
 
@@ -31,7 +32,8 @@ import android.widget.Toast;
  *
  * Show/dismiss state machine (plan section 6):
  *   expand  iff  result != NONE && result != last_dismissed_id && nothing shown
- *   dismiss iff  the page calls the bridge (never the poll)
+ *   dismiss iff  the page calls the bridge, OR the screen stays off past the timeout
+ *               (plan section 6.6) -- never the poll
  * On dismiss, last_dismissed_id := the shown id, persisted immediately.
  *
  * Accepted residual gap: a user-initiated *Force stop* defeats START_STICKY and
@@ -58,9 +60,12 @@ public class PollService extends Service
     private ScreenStateReceiver screen_receiver;
 
     private String poll_url;
+    private String fallback_poll_url;   // optional failover URL (Poller does the failover)
     private String last_dismissed_id;
     private String currently_shown_id;  // in-memory only; null == nothing shown
     private boolean go_home_on_trigger;  // re-read from Prefs; see go_home()
+    private long screen_off_at;          // elapsedRealtime() at last screen-off; 0 == screen on / unset
+    private long screen_off_timeout_ms;  // from Prefs (minutes * 60_000); 0 == auto-dismiss disabled
 
     // -------------------------- Lifecycle --------------------------------
 
@@ -72,8 +77,10 @@ public class PollService extends Service
 
         // Re-read durable state up front (plan section 6.3).
         poll_url = prefs.get_poll_url();
+        fallback_poll_url = prefs.get_fallback_poll_url();
         last_dismissed_id = prefs.get_last_dismissed_id();
         go_home_on_trigger = prefs.get_go_home_on_trigger();
+        screen_off_timeout_ms = prefs.get_screen_off_timeout_min() * 60_000L;
 
         start_foreground();
 
@@ -86,6 +93,7 @@ public class PollService extends Service
 
         poller = new Poller(this, main_handler, this);
         poller.set_poll_url(poll_url);
+        poller.set_fallback_url(fallback_poll_url);
 
         register_screen_receiver();
 
@@ -142,11 +150,15 @@ public class PollService extends Service
 
     private void refresh_config(){
         poll_url = prefs.get_poll_url();
-        // The "send app to background" toggle may have just changed in ConfigActivity,
-        // which restarts the service to land here; pick it up for the next trigger.
+        // The fallback URL, the "send app to background" toggle and the dismiss timeout may
+        // have just changed in ConfigActivity, which restarts the service to land here; pick
+        // them up for the next poll / trigger / screen-off stretch.
+        fallback_poll_url = prefs.get_fallback_poll_url();
         go_home_on_trigger = prefs.get_go_home_on_trigger();
+        screen_off_timeout_ms = prefs.get_screen_off_timeout_min() * 60_000L;
         if(poller == null){ return; }
         poller.set_poll_url(poll_url);
+        poller.set_fallback_url(fallback_poll_url);
         PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
         if(pm != null && pm.isInteractive() && poll_url != null){ poller.start(); }
     }
@@ -187,22 +199,38 @@ public class PollService extends Service
 
     @Override
     public void on_puzzle_solved(){
-        // Runs on the main thread (WebBridge hops here). Collapse is driven solely
-        // by this bridge event, never by the poll (plan section 6.1).
-        if(currently_shown_id == null){ return; }
-        last_dismissed_id = currently_shown_id;
-        prefs.set_last_dismissed_id(last_dismissed_id);  // persist before we forget it
-        currently_shown_id = null;
-        overlay.dismiss();
+        // Runs on the main thread (WebBridge hops here). The page-driven collapse path;
+        // the poll never collapses the overlay (plan section 6.1).
+        dismiss_current();
     }
 
     // -------------------------- Screen gating ----------------------------
 
     @Override
-    public void on_screen_on(){ if(poller != null){ poller.start(); } }
+    public void on_screen_on(){
+        // A puzzle that has sat behind a dark screen past the configured timeout is
+        // dropped as if solved (lazy timeout, plan section 6.6): the lock only meant to
+        // interrupt active use, and a long screen-off means the user walked away. The
+        // timeout is user-set (Prefs, minutes); 0 disables the feature. We check on
+        // screen-on rather than via a Handler -- a postDelayed runs on uptimeMillis,
+        // which stalls during Doze, so it would not measure wall-clock screen-off time;
+        // elapsedRealtime (used below) does count sleep.
+        if(screen_off_timeout_ms > 0 && currently_shown_id != null && screen_off_at != 0
+            && SystemClock.elapsedRealtime() - screen_off_at > screen_off_timeout_ms){
+            dismiss_current();
+        }
+        screen_off_at = 0;
+        if(poller != null){ poller.start(); }
+    }
 
     @Override
-    public void on_screen_off(){ if(poller != null){ poller.stop(); } }
+    public void on_screen_off(){
+        // Stamp when the screen went dark so on_screen_on can measure how long a still
+        // showing puzzle was ignored. A puzzle can only appear while the screen is on
+        // (polling is screen-gated), so this never overwrites a meaningful stamp.
+        screen_off_at = SystemClock.elapsedRealtime();
+        if(poller != null){ poller.stop(); }
+    }
 
     private void register_screen_receiver(){
         screen_receiver = new ScreenStateReceiver(this);
@@ -223,6 +251,18 @@ public class PollService extends Service
         currently_shown_id = id;
         if(go_home_on_trigger){ go_home(); }
         overlay.show_puzzle(id);
+    }
+
+    /* The single collapse path: record the shown id as dismissed (so the next poll does
+       not immediately re-show it -- de-dup, plan section 6.2), then drop the overlay.
+       Shared by the page's bridge solve and the screen-off timeout (plan section 6.6).
+       No-op if nothing is shown. Main thread only. */
+    private void dismiss_current(){
+        if(currently_shown_id == null){ return; }
+        last_dismissed_id = currently_shown_id;
+        prefs.set_last_dismissed_id(last_dismissed_id);  // persist before we forget it
+        currently_shown_id = null;
+        overlay.dismiss();
     }
 
     /* One-shot "send the current app to the background" at trigger time (opt-in via
